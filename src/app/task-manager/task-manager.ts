@@ -1,8 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { TasksService } from '../services/tasks-service';
+import { FilterService } from '../services/filter-service';
+import { StatisticsService } from '../services/statistics-service';
 
-interface Task {
+export interface Task {
   id: number;
   title: string;
   description: string;
@@ -21,39 +24,12 @@ interface Task {
   styleUrl: './task-manager.css',
 })
 export class TaskManager {
-  //Core data
-  tasks: Task[] = [
-    {
-      id: 1,
-      title: 'Complete Angular Assignment',
-      description: 'Finish the task manager application with all requirements',
-      category: 'education',
-      priority: 'high',
-      dueDate: new Date('2024-12-15'),
-      status: 'in-progress',
-      createdAt: new Date('2024-12-01'),
-    },
-    {
-      id: 2,
-      title: 'Buy Groceries',
-      description: 'Milk, Bread, Eggs, Vegetables',
-      category: 'shopping',
-      priority: 'medium',
-      dueDate: new Date('2024-12-10'),
-      status: 'pending',
-      createdAt: new Date('2024-12-05'),
-    },
-    {
-      id: 3,
-      title: 'Team Meeting',
-      description: 'Discuss Q1 project roadmap',
-      category: 'work',
-      priority: 'high',
-      dueDate: new Date('2024-12-08'),
-      status: 'completed',
-      createdAt: new Date('2024-12-08'),
-    },
-  ];
+  private taskService: TasksService = inject(TasksService);
+  private filterService: FilterService = inject(FilterService);
+  private statisticsService: StatisticsService = inject(StatisticsService);
+  getTasks(): Task[] {
+    return this.taskService.getTasks();
+  }
 
   //Dropdown Options
   categories: string[] = [
@@ -86,38 +62,63 @@ export class TaskManager {
   };
 
   //Filter controls
-  filterStatus: string = 'all';
-  filterCategory: string = 'all';
-  filterPriority: string = 'all';
-  showCompleted: boolean = true;
+  //filterStatus: string = 'all';
+  //filterCategory: string = 'all';
+  //filterPriority: string = 'all';
+  //showCompleted: boolean = true;
+
+  //Getter and setter properties for filters
+  get filterStatus(): string {
+    return this.filterService.getStatusFilter();
+  }
+
+  set filterStatus(value: string) {
+    this.filterService.setStatusFilter(value);
+  }
+
+  get filterCategory(): string {
+    return this.filterService.getCategoryFilter();
+  }
+
+  set filterCategory(value: string) {
+    this.filterService.setCategoryFilter(value);
+  }
+
+  get filterPriority(): string {
+    return this.filterService.getPriorityFilter();
+  }
+
+  set filterPriority(value: string) {
+    this.filterService.setPriorityFilter(value);
+  }
+
+  get showCompleted(): boolean {
+    return this.filterService.getShowCompleted();
+  }
+
+  set showCompleted(value: boolean) {
+    this.filterService.setShowCompleted(value);
+  }
 
   //Methods
   getCompletedTasksCount(): number {
-    return this.tasks.filter((task) => task.status === 'completed').length;
+    return this.statisticsService.getCompletedTasksCount();
   }
 
   getPendingTasksCount(): number {
-    return this.tasks.filter((task) => task.status === 'pending').length;
+    return this.statisticsService.getPendingTasksCount();
   }
 
   getOverdueTasksCount(): number {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return this.tasks.filter((task) => new Date(task.dueDate) < today && task.status != 'completed')
-      .length;
+    return this.statisticsService.getOverdueTasksCount();
   }
 
   getCompletionRate(): number {
-    if (this.tasks.length == 0) return 0;
-    return Math.round((this.getCompletedTasksCount() / this.tasks.length) * 100);
+    return this.statisticsService.getCompletionRate();
   }
 
   getProductivityLevel(): string {
-    const rate = this.getCompletionRate();
-    if (rate >= 80) return 'excellent';
-    if (rate >= 60) return 'good';
-    if (rate >= 40) return 'needs-improvement';
-    return 'poor';
+    return this.statisticsService.getProductivityLevel();
   }
 
   onFieldFocus(field: string): void {
@@ -144,7 +145,7 @@ export class TaskManager {
       createdAt: new Date(),
     };
 
-    this.tasks.push(task);
+    this.taskService.addTask(task);
     this.clearForm();
   }
 
@@ -160,7 +161,7 @@ export class TaskManager {
   }
 
   getFilteredTasks(): Task[] {
-    let filtered = [...this.tasks];
+    let filtered = [...this.getTasks()];
 
     if (this.filterStatus !== 'all') {
       filtered = filtered.filter((task) => task.status === this.filterStatus);
@@ -182,16 +183,7 @@ export class TaskManager {
   }
 
   toggleTaskComplete(id: number): void {
-    const task = this.tasks.find((t) => t.id === id);
-    if (task) {
-      if (task.status === 'completed') {
-        task.status = 'pending';
-        delete task.completedAt;
-      } else {
-        task.status = 'completed';
-        task.completedAt = new Date();
-      }
-    }
+    this.taskService.toggleTaskComplete(id);
   }
 
   isOverdue(task: Task): boolean {
@@ -201,9 +193,6 @@ export class TaskManager {
   }
 
   deleteTask(id: number): void {
-    const index = this.tasks.findIndex((task) => task.id === id);
-    if (index !== -1) {
-      this.tasks.splice(index, 1);
-    }
+    this.taskService.deleteTask(id);
   }
 }
