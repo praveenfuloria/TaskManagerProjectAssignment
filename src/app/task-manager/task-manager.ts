@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { TasksService } from '../services/tasks-service';
 import { FilterService } from '../services/filter-service';
 import { StatisticsService } from '../services/statistics-service';
+import { PriorityLabelPipe } from '../pipes/priority-label-pipe';
+import { StatusLabelPipePipe } from '../pipes/status-label-pipe-pipe';
 
 export interface Task {
   id: number;
@@ -19,7 +21,7 @@ export interface Task {
 
 @Component({
   selector: 'app-task-manager',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PriorityLabelPipe, StatusLabelPipePipe],
   templateUrl: './task-manager.html',
   styleUrl: './task-manager.css',
 })
