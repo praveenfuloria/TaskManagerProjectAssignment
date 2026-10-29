@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TasksService } from '../services/tasks-service';
@@ -6,6 +6,7 @@ import { FilterService } from '../services/filter-service';
 import { StatisticsService } from '../services/statistics-service';
 import { PriorityLabelPipe } from '../pipes/priority-label-pipe';
 import { StatusLabelPipePipe } from '../pipes/status-label-pipe-pipe';
+import { TaskApiService } from '../services/task-api-service';
 
 export interface Task {
   id: number;
@@ -16,7 +17,7 @@ export interface Task {
   dueDate: Date;
   status: string;
   createdAt: Date;
-  completedAt?: Date;
+  completedAt?: Date | null;
 }
 
 @Component({
@@ -24,13 +25,18 @@ export interface Task {
   imports: [CommonModule, FormsModule, PriorityLabelPipe, StatusLabelPipePipe],
   templateUrl: './task-manager.html',
   styleUrl: './task-manager.css',
+  changeDetection: ChangeDetectionStrategy.Eager,
 })
-export class TaskManager {
-  private taskService: TasksService = inject(TasksService);
+export class TaskManager implements OnInit {
+  //Service
+  private tasksService: TasksService = inject(TasksService);
   private filterService: FilterService = inject(FilterService);
   private statisticsService: StatisticsService = inject(StatisticsService);
+  private tasksApiService: TaskApiService = inject(TaskApiService);
+
+  //Methods
   getTasks(): Task[] {
-    return this.taskService.getTasks();
+    return this.tasksService.getTasks();
   }
 
   //Dropdown Options
@@ -68,6 +74,39 @@ export class TaskManager {
   //filterCategory: string = 'all';
   //filterPriority: string = 'all';
   //showCompleted: boolean = true;
+
+  //Error and Loading Properties
+  errorMessage: string = '';
+  isLoadingTasks: boolean = false;
+  isAddingTask: boolean = false;
+  isUpdatingTask: boolean = false;
+  deletingTaskId: number | null = null;
+
+  //ngOnInit
+  ngOnInit(): void {
+    this.isLoadingTasks = true;
+    this.tasksApiService.getTasks().subscribe(
+      // (response: Task[]) => {
+      // this.tasksService.setTasks(response);
+      //}
+      {
+        next: (response: Task[]) => {
+          //console.log(response);
+          this.tasksService.setTasks(response);
+          this.errorMessage = '';
+          this.isLoadingTasks = false;
+        },
+        error: (error) => {
+          this.errorMessage = 'Failed to load tasks. Please refresh the page.';
+          console.error('Error loading tasks: ', error);
+          this.isLoadingTasks = false;
+        },
+        complete: () => {
+          console.log('Fetch tasks completed');
+        },
+      },
+    );
+  }
 
   //Getter and setter properties for filters
   get filterStatus(): string {
@@ -146,9 +185,33 @@ export class TaskManager {
       status: this.newTask.status,
       createdAt: new Date(),
     };
+    this.isAddingTask = true;
+    this.errorMessage = '';
+    this.tasksApiService.createTask(task).subscribe(
+      //(response: Task) => {
+      //this.tasksService.addTask(response);
+      //this.clearForm();
+      //  }
 
-    this.taskService.addTask(task);
-    this.clearForm();
+      {
+        next: (response: Task) => {
+          this.tasksService.addTask(response);
+          this.clearForm();
+          this.isAddingTask = false;
+          this.errorMessage = '';
+        },
+        error: (error) => {
+          console.error('Error adding task: ', error);
+          this.errorMessage = 'Failed to add task. Please try again.';
+          this.isAddingTask = false;
+        },
+        complete: () => {
+          console.log('Add task completed');
+        },
+      },
+    );
+    // this.tasksService.addTask(task);
+    //this.clearForm();
   }
 
   clearForm(): void {
@@ -185,7 +248,55 @@ export class TaskManager {
   }
 
   toggleTaskComplete(id: number): void {
-    this.taskService.toggleTaskComplete(id);
+    // this.tasksService.toggleTaskComplete(id);
+
+    this.isUpdatingTask = true;
+
+    this.tasksApiService.getTaskById(id).subscribe({
+      next: (response: Task) => {
+        const newStatus = response.status === 'completed' ? 'pending' : 'completed';
+        const updatedData: Task = {
+          ...response,
+          status: newStatus,
+          completedAt: newStatus === 'completed' ? new Date() : null,
+        };
+
+        this.tasksApiService.updateTask(id, updatedData).subscribe({
+          next: (updatedTask: Task) => {
+            this.tasksService.toggleTaskComplete(updatedTask.id);
+            this.errorMessage = '';
+            this.isUpdatingTask = false;
+          },
+          error: (error) => {
+            this.errorMessage = 'Failed to update task. Please try again.';
+            console.error('Error updating task: ', error);
+            this.isUpdatingTask = false;
+          },
+        });
+      },
+      error: (error) => {
+        this.errorMessage = 'Failed to get task details. Please try again.';
+        console.error('Error getting task: ', error);
+        this.isUpdatingTask = false;
+      },
+      complete: () => {
+        console.log('Get task completed.');
+      },
+    });
+
+    /* this.tasksApiService.getTaskById(id).subscribe((response: Task) => {
+      const newStatus = response.status === 'completed' ? 'pending' : 'completed';
+      const updatedData: Task = {
+        ...response,
+        status: newStatus,
+        completedAt: newStatus === 'completed' ? new Date() : null,
+      };
+
+      this.tasksApiService.updateTask(id, updatedData).subscribe((updatedTask: Task) => {
+        this.tasksService.toggleTaskComplete(updatedTask.id);
+      });
+    });
+    */
   }
 
   isOverdue(task: Task): boolean {
@@ -195,6 +306,30 @@ export class TaskManager {
   }
 
   deleteTask(id: number): void {
-    this.taskService.deleteTask(id);
+    // this.tasksService.deleteTask(id);
+    if (confirm('Are you sure to delete?')) {
+      this.deletingTaskId = id;
+      this.tasksApiService.deleteTask(id).subscribe(
+        //(response: any) => {
+        //this.tasksService.deleteTask(id);
+        //}
+
+        {
+          next: (response: any) => {
+            this.tasksService.deleteTask(id);
+            this.errorMessage = '';
+            this.deletingTaskId = null;
+          },
+          error: (error) => {
+            console.error('Error deleting task: ', error);
+            this.errorMessage = 'Failed to delete task. Please try again.';
+            this.deletingTaskId = null;
+          },
+          complete: () => {
+            console.log('Delete task completed');
+          },
+        },
+      );
+    }
   }
 }
